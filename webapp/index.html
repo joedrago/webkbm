@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>webkbm</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#101418">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #101418;
+    --panel: #1a1f25;
+    --panel-2: #232a32;
+    --accent: #6cb6ff;
+    --text: #e6e8eb;
+    --muted: #9aa3ad;
+    --danger: #ff7575;
+    --ok: #7ed492;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; height: 100%; width: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow: hidden; overscroll-behavior: none;
+    user-select: none; -webkit-user-select: none;
+    touch-action: none;
+  }
+  body {
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+    gap: 6px;
+  }
+  .status {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; font-size: 12px; color: var(--muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); transition: background 120ms; }
+  .dot.ok { background: var(--ok); }
+  .input-row {
+    flex: 0 0 auto;
+    display: flex; gap: 6px; padding: 0 6px;
+  }
+  .input-row input {
+    flex: 1;
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--panel-2); border-radius: 8px;
+    padding: 10px 12px; font-size: 16px; outline: none;
+    -webkit-appearance: none; appearance: none;
+  }
+  .input-row input:focus { border-color: var(--accent); }
+  .keys {
+    flex: 0 0 auto;
+    display: grid; gap: 6px; padding: 0 6px;
+    grid-template-columns: repeat(8, 1fr);
+  }
+  .key {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--panel-2); border-radius: 8px;
+    padding: 10px 4px; font-size: 14px; font-weight: 500;
+    text-align: center; cursor: pointer;
+    transition: background 80ms, transform 80ms;
+    touch-action: manipulation;
+  }
+  .key:active, .key.held { background: var(--panel-2); transform: scale(0.97); }
+  .key.win { color: var(--accent); }
+  .trackpad {
+    flex: 1 1 auto;
+    background: var(--panel);
+    border: 1px solid var(--panel-2);
+    border-radius: 12px;
+    margin: 0 6px;
+    position: relative;
+    overflow: hidden;
+    touch-action: none;
+  }
+  .trackpad .hint {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 13px; pointer-events: none;
+    opacity: 0.5; text-align: center; padding: 16px;
+  }
+  .trackpad.active .hint { opacity: 0; }
+  .clicks {
+    flex: 0 0 auto;
+    display: grid; gap: 6px; padding: 0 6px;
+    grid-template-columns: 5fr 2fr 5fr;
+  }
+  .click {
+    background: var(--panel); color: var(--text);
+    border: 1px solid var(--panel-2); border-radius: 10px;
+    padding: 16px 8px; font-size: 15px; font-weight: 600;
+    text-align: center; cursor: pointer;
+    touch-action: manipulation;
+  }
+  .click:active { background: var(--accent); color: var(--bg); }
+  .footer { flex: 0 0 auto; height: 4px; }
+</style>
+</head>
+<body>
+  <div class="status">
+    <div id="dot" class="dot"></div>
+    <span id="statusText">connecting&hellip;</span>
+  </div>
+
+  <div class="input-row">
+    <input id="typeInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="type here&hellip;">
+  </div>
+
+  <div class="keys">
+    <div class="key" data-k="Control">Ctrl</div>
+    <div class="key" data-k="Tab">Tab</div>
+    <div class="key" data-k="Alt">Alt</div>
+    <div class="key" data-k="Shift">Shift</div>
+    <div class="key" data-k="ArrowLeft">&larr;</div>
+    <div class="key" data-k="ArrowDown">&darr;</div>
+    <div class="key" data-k="ArrowUp">&uarr;</div>
+    <div class="key" data-k="ArrowRight">&rarr;</div>
+  </div>
+
+  <div class="keys" style="grid-template-columns: repeat(4, 1fr)">
+    <div class="key win" data-k="Meta">&#x229E; Win</div>
+    <div class="key" data-k="Escape">Esc</div>
+    <div class="key" data-k="Backspace">Bksp</div>
+    <div class="key" data-k="Enter">Enter</div>
+  </div>
+
+  <div id="trackpad" class="trackpad">
+    <div class="hint">drag = move &nbsp;&middot;&nbsp; tap = click<br>2-finger drag = scroll &nbsp;&middot;&nbsp; 2-finger tap = right-click</div>
+  </div>
+
+  <div class="clicks">
+    <div class="click" id="btnL">Left</div>
+    <div class="click" id="btnM">Mid</div>
+    <div class="click" id="btnR">Right</div>
+  </div>
+  <div class="footer"></div>
+
+<script>
+(() => {
+  const dot = document.getElementById('dot');
+  const statusText = document.getElementById('statusText');
+  const trackpad = document.getElementById('trackpad');
+  const typeInput = document.getElementById('typeInput');
+
+  let ws = null;
+  let connected = false;
+  let queue = [];
+  let backoff = 500;
+  let reconnectTimer = null;
+  let heartbeatTimer = null;
+
+  function setStatus(ok, text) {
+    dot.classList.toggle('ok', ok);
+    statusText.textContent = text;
+  }
+
+  function connect() {
+    if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    const url = `ws://${location.host}/ws`;
+    setStatus(false, 'connecting…');
+    try { ws = new WebSocket(url); } catch (e) { scheduleReconnect(); return; }
+    ws.onopen = () => {
+      connected = true;
+      backoff = 500;
+      setStatus(true, 'connected');
+      while (queue.length) ws.send(queue.shift());
+      startHeartbeat();
+    };
+    ws.onclose = () => {
+      connected = false;
+      setStatus(false, 'disconnected');
+      stopHeartbeat();
+      scheduleReconnect();
+    };
+    ws.onerror = () => { try { ws.close(); } catch(e){} };
+  }
+  function scheduleReconnect() {
+    if (reconnectTimer) return;
+    reconnectTimer = setTimeout(() => { reconnectTimer = null; connect(); }, backoff);
+    backoff = Math.min(backoff * 2, 5000);
+  }
+  function send(msg) {
+    if (connected && ws.readyState === 1) ws.send(msg);
+    else if (queue.length < 256) queue.push(msg);
+  }
+
+  // Heartbeat: keeps NAT alive and tells us fast if the socket is dead.
+  function startHeartbeat() {
+    stopHeartbeat();
+    heartbeatTimer = setInterval(() => {
+      if (ws && ws.readyState === 1) {
+        try { ws.send('P'); } catch (e) { try { ws.close(); } catch(_) {} }
+      }
+    }, 15000);
+  }
+  function stopHeartbeat() {
+    if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+  }
+
+  // When the page becomes visible again (phone unlocked, tab re-foregrounded),
+  // assume any existing socket may be stale. Force-close and reconnect now
+  // rather than waiting for the next user action to discover it's dead.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (!ws || ws.readyState !== 1) {
+      backoff = 500;
+      connect();
+      return;
+    }
+    // Probe: if the socket is wedged the next send throws.
+    try { ws.send('P'); } catch (e) { try { ws.close(); } catch(_) {} }
+  });
+  window.addEventListener('pageshow', () => {
+    if (!ws || ws.readyState !== 1) { backoff = 500; connect(); }
+  });
+
+  connect();
+
+  // ---------- trackpad ----------
+  const pointers = new Map(); // id -> {x,y,startX,startY,startTime,moved}
+  const TAP_MOVE_THRESHOLD = 8;   // px
+  const TAP_TIME_THRESHOLD = 250; // ms
+  let lastCenter = null;
+  let mode = null; // 'move' | 'scroll' | null
+  let movedSignificantly = false;
+
+  function center() {
+    let sx = 0, sy = 0, n = 0;
+    for (const p of pointers.values()) { sx += p.x; sy += p.y; n++; }
+    return n ? { x: sx / n, y: sy / n, n } : null;
+  }
+
+  trackpad.addEventListener('pointerdown', e => {
+    trackpad.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, {
+      x: e.clientX, y: e.clientY,
+      startX: e.clientX, startY: e.clientY,
+      startTime: performance.now(), moved: false
+    });
+    trackpad.classList.add('active');
+    const c = center();
+    lastCenter = c;
+    if (pointers.size === 1) { mode = 'move'; movedSignificantly = false; }
+    else if (pointers.size === 2) { mode = 'scroll'; }
+  });
+
+  trackpad.addEventListener('pointermove', e => {
+    const p = pointers.get(e.pointerId);
+    if (!p) return;
+    p.x = e.clientX; p.y = e.clientY;
+    if (Math.hypot(p.x - p.startX, p.y - p.startY) > TAP_MOVE_THRESHOLD) p.moved = true;
+
+    const c = center();
+    if (!lastCenter || !c) { lastCenter = c; return; }
+    const dx = c.x - lastCenter.x;
+    const dy = c.y - lastCenter.y;
+    lastCenter = c;
+
+    if (mode === 'move' && pointers.size === 1) {
+      const SENS = 1.6;
+      if (Math.abs(dx) >= 0.5 || Math.abs(dy) >= 0.5) {
+        movedSignificantly = movedSignificantly || (Math.hypot(p.x - p.startX, p.y - p.startY) > TAP_MOVE_THRESHOLD);
+        send(`M${(dx * SENS).toFixed(2)} ${(dy * SENS).toFixed(2)}`);
+      }
+    } else if (mode === 'scroll' && pointers.size === 2) {
+      const SCROLL_DIV = 24;
+      const sx = -dx / SCROLL_DIV;
+      const sy = -dy / SCROLL_DIV;
+      if (Math.abs(sx) >= 0.02 || Math.abs(sy) >= 0.02) {
+        send(`S${sx.toFixed(3)} ${sy.toFixed(3)}`);
+      }
+    }
+  });
+
+  function endPointer(e) {
+    const p = pointers.get(e.pointerId);
+    if (!p) return;
+    const totalPointersBefore = pointers.size;
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) {
+      trackpad.classList.remove('active');
+      // Determine tap
+      const dur = performance.now() - p.startTime;
+      const dist = Math.hypot(p.x - p.startX, p.y - p.startY);
+      if (!movedSignificantly && dur < TAP_TIME_THRESHOLD && dist <= TAP_MOVE_THRESHOLD) {
+        if (totalPointersBefore === 1) send('Cl');
+        else if (totalPointersBefore === 2) send('Cr');
+        else if (totalPointersBefore >= 3) send('Cm');
+      }
+      mode = null; lastCenter = null;
+    } else {
+      lastCenter = center();
+      // dropping back to single-pointer move: don't snap-jump
+      if (pointers.size === 1) mode = 'move';
+    }
+  }
+  trackpad.addEventListener('pointerup', endPointer);
+  trackpad.addEventListener('pointercancel', endPointer);
+
+  // ---------- click buttons ----------
+  function bindClick(el, code) {
+    let pressed = false;
+    el.addEventListener('pointerdown', e => {
+      e.preventDefault(); pressed = true;
+      send('D' + code);
+      el.setPointerCapture(e.pointerId);
+    });
+    const release = e => {
+      if (!pressed) return;
+      pressed = false;
+      send('U' + code);
+    };
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+  }
+  bindClick(document.getElementById('btnL'), 'l');
+  bindClick(document.getElementById('btnM'), 'm');
+  bindClick(document.getElementById('btnR'), 'r');
+
+  // ---------- special keys ----------
+  // Non-modifier key tap: fire (consuming any armed mods as a chord), then disarm.
+  // Modifier tap: arm sticky (visual 'held'). Tap an already-armed mod: fire it standalone
+  // (so a single tap of Win when nothing else is armed = arm; second tap = press Win alone).
+  const MODS = new Set(['Meta', 'Control', 'Alt', 'Shift']);
+  const armed = new Set();
+  function clearArmed() {
+    armed.clear();
+    document.querySelectorAll('.key.held').forEach(x => x.classList.remove('held'));
+  }
+  document.querySelectorAll('.key').forEach(k => {
+    const name = k.dataset.k;
+    k.addEventListener('pointerdown', e => { e.preventDefault(); });
+    k.addEventListener('click', e => {
+      e.preventDefault();
+      if (MODS.has(name)) {
+        if (armed.has(name)) {
+          // Second tap: fire standalone, disarm just this one.
+          send('K' + name);
+          armed.delete(name);
+          k.classList.remove('held');
+        } else {
+          armed.add(name);
+          k.classList.add('held');
+        }
+        return;
+      }
+      const mods = Array.from(armed).join('+');
+      send(mods ? `K${mods}+${name}` : `K${name}`);
+      if (armed.size) clearArmed();
+    });
+  });
+
+  // ---------- text input ----------
+  // While the keyboard is up, the field accumulates and we diff against the
+  // previous value to forward inserts or backspaces. We wipe the field when
+  // the input loses focus OR when the soft keyboard is dismissed (detected
+  // via visualViewport height returning to ~full window height).
+  let lastValue = '';
+  function clearField() {
+    typeInput.value = '';
+    lastValue = '';
+  }
+  typeInput.addEventListener('input', () => {
+    const v = typeInput.value;
+    if (v === lastValue) return;
+    if (v.length > lastValue.length && v.startsWith(lastValue)) {
+      send('T' + v.slice(lastValue.length));
+    } else if (v.length < lastValue.length && lastValue.startsWith(v)) {
+      const n = lastValue.length - v.length;
+      for (let i = 0; i < n; i++) send('KBackspace');
+    } else {
+      // Replacement (e.g. autocorrect commit): undo old, then type new.
+      for (let i = 0; i < lastValue.length; i++) send('KBackspace');
+      if (v.length) send('T' + v);
+    }
+    lastValue = v;
+  });
+  typeInput.addEventListener('blur', clearField);
+
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    let kbDown = vv.height >= window.innerHeight - 100;
+    vv.addEventListener('resize', () => {
+      const downNow = vv.height >= window.innerHeight - 100;
+      if (downNow && !kbDown && document.activeElement !== typeInput) {
+        clearField();
+      } else if (downNow && !kbDown) {
+        // Keyboard closed while input still focused (Android down-arrow): clear too.
+        clearField();
+      }
+      kbDown = downNow;
+    });
+  }
+
+  // Prevent context menu / drag image
+  document.addEventListener('contextmenu', e => e.preventDefault());
+  document.addEventListener('dragstart', e => e.preventDefault());
+  document.addEventListener('gesturestart', e => e.preventDefault());
+
+  // Register service worker so the PWA installs cleanly (optional, ignore errors)
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
