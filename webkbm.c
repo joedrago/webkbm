@@ -858,12 +858,59 @@ static LRESULT CALLBACK msgWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 }
 
 // ------------------------------------------------------------------
+// Elevation
+// ------------------------------------------------------------------
+
+static int isAdmin(void) {
+    BOOL elevated = FALSE;
+    HANDLE token = NULL;
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        TOKEN_ELEVATION te;
+        DWORD sz;
+        if (GetTokenInformation(token, TokenElevation, &te, sizeof(te), &sz)) {
+            elevated = te.TokenIsElevated;
+        }
+        CloseHandle(token);
+    }
+    return elevated ? 1 : 0;
+}
+
+// Relaunch self via UAC. Returns 0 if a child was started (caller should exit),
+// -1 if the user declined or the relaunch failed (caller may continue degraded).
+static int relaunchAsAdmin(void) {
+    char exe[MAX_PATH];
+    if (!GetModuleFileNameA(NULL, exe, MAX_PATH)) return -1;
+
+    char dir[MAX_PATH];
+    strncpy(dir, exe, MAX_PATH);
+    dir[MAX_PATH - 1] = 0;
+    char *slash = strrchr(dir, '\\');
+    if (slash) *slash = 0;
+
+    SHELLEXECUTEINFOA sei = {0};
+    sei.cbSize     = sizeof(sei);
+    sei.lpVerb     = "runas";
+    sei.lpFile     = exe;
+    sei.lpDirectory = dir;
+    sei.nShow      = SW_SHOWNORMAL;
+    if (!ShellExecuteExA(&sei)) return -1;
+    return 0;
+}
+
+// ------------------------------------------------------------------
 // Entry point
 // ------------------------------------------------------------------
 
 int main(void) {
+    // Without admin we can't SendInput into elevated foreground windows
+    // (UIPI blocks lower-integrity input). Self-elevate via UAC.
+    if (!isAdmin()) {
+        if (relaunchAsAdmin() == 0) return 0;
+        // User declined UAC or relaunch failed — continue degraded.
+    }
+
     logInit();
-    logMsg("webkbm starting");
+    logMsg("webkbm starting (elevated=%d)", isAdmin());
 
     char ip[64] = "127.0.0.1";
     getLanIp(ip, sizeof(ip));

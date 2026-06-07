@@ -28,5 +28,17 @@ if not exist webkbm.exe (
     exit /b 1
 )
 
+:: Generate webkbm.reg pointing at the current absolute exe path.
+:: Double-click it to install a per-user Run entry for autostart at login.
+set "EXE_PATH=%CD%\webkbm.exe"
+set "ESCAPED_PATH=%EXE_PATH:\=\\%"
+> webkbm.reg (
+    echo REGEDIT4
+    echo.
+    echo [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run]
+    echo "webkbm"="%ESCAPED_PATH%"
+)
+
 echo.
 echo OK: webkbm.exe
+echo OK: webkbm.reg ^(double-click to enable autostart^)

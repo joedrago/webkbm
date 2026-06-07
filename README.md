@@ -29,3 +29,7 @@ A tray icon appears (three blue dots over a bar). Right-click it:
 The PWA exposes a trackpad area (one-finger move, two-finger scroll, tap/2-tap/3-tap for L/R/M click), L/Mid/Right buttons, a transient text input, and a row of special keys (Win/Esc/Bksp/Enter/Ctrl/Tab/Alt/Shift/arrows). Modifier keys are sticky: tap to arm, tap again to send standalone (e.g. tap-tap Win opens Start; tap Win then tap an arrow snaps a window).
 
 Logs to `webkbm.log` next to the exe.
+
+## Autostart at login
+
+`build.bat` also writes `webkbm.reg` containing the current absolute path to `webkbm.exe`. Double-click it (or `reg import webkbm.reg`) to add a per-user `HKCU\...\Run` entry so webkbm launches at next login. Delete the registry value (or re-run with a fresh value) if you move the repo.
